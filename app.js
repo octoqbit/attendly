@@ -77,7 +77,7 @@ async function initializeApp() {
 
 async function loadDatabaseData() {
   if (!window.db) return;
-  
+
   // Load real classes from Supabase
   const resClasses = await window.db.getClasses();
   if (resClasses.success && resClasses.data.length > 0) {
@@ -233,11 +233,11 @@ function renderRegisterFormHtml() {
   `;
 }
 
-window.switchAuthTab = function(mode) {
+window.switchAuthTab = function (mode) {
   renderAuthView(mode);
 };
 
-window.selectRole = function(role) {
+window.selectRole = function (role) {
   activeRole = role;
   renderAuthView("register");
 };
@@ -282,6 +282,12 @@ function attachAuthEventListeners(mode) {
         department: document.getElementById("regDept").value.trim(),
         faculty_id: document.getElementById("regFacultyId").value.trim()
       };
+
+      // Validate faculty ID — only 'FACULTYECE' is accepted
+      if (activeRole === 'faculty' && extraData.faculty_id !== 'FACULTYECE123') {
+        renderAuthView("register", "Invalid Faculty ID. Please enter the authorized Faculty ID to register.");
+        return;
+      }
 
       showToast("Creating user account...", "info");
       const res = await window.db.signUp(email, password, name, activeRole, extraData);
@@ -422,8 +428,8 @@ function renderViewportContent() {
 
           <div class="class-grid">
             ${activeClasses.map(cls => {
-              const checkedIn = myLogs.some(l => l.class_id === cls.id || l.class_name === cls.name);
-              return `
+        const checkedIn = myLogs.some(l => l.class_id === cls.id || l.class_name === cls.name);
+        return `
                 <div class="class-card">
                   <div>
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
@@ -442,7 +448,7 @@ function renderViewportContent() {
                   `}
                 </div>
               `;
-            }).join('')}
+      }).join('')}
           </div>
         </section>
       `;
@@ -551,7 +557,7 @@ function renderViewportContent() {
               <tr>
                 <td style="font-weight:600;">${log.student_name || log.student?.name || currentUser.name}</td>
                 <td>${log.class_name || log.class?.name || 'Data Structures'}</td>
-                <td style="color:var(--text-muted);">${log.date || new Date().toISOString().slice(0,10)} at ${log.time || '09:05 AM'}</td>
+                <td style="color:var(--text-muted);">${log.date || new Date().toISOString().slice(0, 10)} at ${log.time || '09:05 AM'}</td>
                 <td>
                   <span style="padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; background:rgba(16,185,129,0.15); color:var(--mint); border:1px solid rgba(16,185,129,0.3);">
                     ${log.status || 'present'}
@@ -572,7 +578,7 @@ function renderViewportContent() {
 // STUDENT REAL GEOFENCED CHECK-IN MODAL
 // ============================================
 
-window.triggerStudentCheckInModal = function(classId, className) {
+window.triggerStudentCheckInModal = function (classId, className) {
   showToast("Requesting browser Geolocation coordinates...", "info");
 
   if ("geolocation" in navigator) {
@@ -630,7 +636,7 @@ function openStudentVerificationModal(classId, className, lat, lng) {
   document.body.insertAdjacentHTML("beforeend", modalHtml);
 }
 
-window.submitStudentAttendance = async function(classId, className) {
+window.submitStudentAttendance = async function (classId, className) {
   showToast("Saving attendance to Supabase database...", "info");
 
   const res = await window.db.markAttendance(classId, currentUser.id, true, true);
@@ -657,7 +663,7 @@ window.submitStudentAttendance = async function(classId, className) {
 // FACULTY CLASS & ROSTER MODALS
 // ============================================
 
-window.openFacultyCreateClassModal = function() {
+window.openFacultyCreateClassModal = function () {
   const modalHtml = `
     <div class="modal-overlay" id="activeAppModal">
       <div class="modal-dialog">
@@ -697,7 +703,7 @@ window.openFacultyCreateClassModal = function() {
   document.body.insertAdjacentHTML("beforeend", modalHtml);
 };
 
-window.submitFacultyNewClass = async function() {
+window.submitFacultyNewClass = async function () {
   const name = document.getElementById("newClsName").value.trim();
   const code = document.getElementById("newClsCode").value.trim();
   const time = document.getElementById("newClsTime").value.trim();
@@ -723,7 +729,7 @@ window.submitFacultyNewClass = async function() {
   renderViewportContent();
 };
 
-window.toggleFacultyClassStatus = async function(classId) {
+window.toggleFacultyClassStatus = async function (classId) {
   const cls = activeClasses.find(c => c.id === classId);
   if (cls) {
     cls.status = cls.status === 'open' ? 'closed' : 'open';
@@ -734,7 +740,7 @@ window.toggleFacultyClassStatus = async function(classId) {
   }
 };
 
-window.openFacultyRosterModal = function(classId, className) {
+window.openFacultyRosterModal = function (classId, className) {
   const sampleStudents = [
     { name: "Aarav Mehta", roll: "CS-2026-041" },
     { name: "Ishita Roy", roll: "CS-2026-017" },
@@ -785,12 +791,12 @@ window.openFacultyRosterModal = function(classId, className) {
   document.body.insertAdjacentHTML("beforeend", modalHtml);
 };
 
-window.saveFacultyRoster = async function(classId, className) {
+window.saveFacultyRoster = async function (classId, className) {
   showToast(`Saved roster attendance for ${className}!`);
   closeAppModal();
 };
 
-window.openConfigModal = function() {
+window.openConfigModal = function () {
   const currentUrl = localStorage.getItem("attendly_supabase_url") || "https://szlaftvgqimfzgboqyft.supabase.co";
   const currentKey = localStorage.getItem("attendly_supabase_key") || "";
 
@@ -821,7 +827,7 @@ window.openConfigModal = function() {
   document.body.insertAdjacentHTML("beforeend", modalHtml);
 };
 
-window.saveConfigCredentials = function() {
+window.saveConfigCredentials = function () {
   const url = document.getElementById("cfgUrl").value.trim();
   const key = document.getElementById("cfgKey").value.trim();
   if (url && key && window.db) {
@@ -831,19 +837,19 @@ window.saveConfigCredentials = function() {
   }
 };
 
-window.closeAppModal = function() {
+window.closeAppModal = function () {
   const modal = document.getElementById("activeAppModal");
   if (modal) modal.remove();
 };
 
-window.handleSignOut = async function() {
+window.handleSignOut = async function () {
   if (window.db) await window.db.signOut();
   currentUser = null;
   showToast("Signed out successfully", "info");
   renderAuthView("login");
 };
 
-window.exportAttendanceCsv = function() {
+window.exportAttendanceCsv = function () {
   let csv = "Student Name,Course Subject,Date,Time,Status,GPS Verified,Face Verified\n";
   attendanceLogs.forEach(l => {
     csv += `"${l.student_name || currentUser.name}","${l.class_name || 'Data Structures'}","${l.date || '2026-09-07'}","${l.time || '09:00 AM'}","${l.status || 'present'}","Yes","Yes"\n`;
@@ -852,7 +858,7 @@ window.exportAttendanceCsv = function() {
   const blob = new Blob([csv], { type: "text/csv" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `attendly-audit-${new Date().toISOString().slice(0,10)}.csv`;
+  link.download = `attendly-audit-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   showToast("Exported CSV attendance audit!");
 };
