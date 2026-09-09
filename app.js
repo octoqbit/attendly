@@ -223,7 +223,7 @@ function renderLoginFormHtml() {
     <form id="authLoginForm">
       <div class="form-group">
         <label>Email Address</label>
-        <input id="loginEmail" type="email" class="input-field" placeholder="student@college.edu or faculty@college.edu" required />
+        <input id="loginEmail" type="email" class="input-field" placeholder="student@gmail.com or faculty@gmail.com" required />
       </div>
       <div class="form-group">
         <label>Password</label>
