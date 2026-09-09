@@ -16,6 +16,68 @@ let activeRole = "student"; // Default for registration tab ('student' | 'facult
 // In-memory cache synced with Supabase / local persistence
 let activeClasses = [];
 let attendanceLogs = [];
+let selectedClassFilter = 'all';
+let selectedDateFilter = '';
+
+// ============================================
+// HELPER: TIME SLOTS & SESSION LIFECYCLE
+// ============================================
+
+function generateTimeSlots() {
+  const slots = [];
+  for (let h = 7; h <= 21; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const minStr = m === 0 ? '00' : '30';
+      slots.push(`${hour12}:${minStr} ${ampm}`);
+    }
+  }
+  return slots;
+}
+
+function parseTime12(timeStr) {
+  if (!timeStr) return null;
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!match) return null;
+  let h = parseInt(match[1]);
+  const m = parseInt(match[2]);
+  const ampm = match[3].toUpperCase();
+  if (ampm === 'PM' && h !== 12) h += 12;
+  if (ampm === 'AM' && h === 12) h = 0;
+  return h * 60 + m;
+}
+
+function getVisibleClasses() {
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  return activeClasses.filter(cls => {
+    // Check 8-hour expiry from creation
+    if (cls.created_at) {
+      const created = new Date(cls.created_at);
+      const hoursSinceCreation = (now - created) / (1000 * 60 * 60);
+      if (hoursSinceCreation >= 8) return false;
+    }
+
+    // Parse scheduled end time and auto-close if past
+    if (cls.time) {
+      const parts = cls.time.split(' - ');
+      if (parts.length === 2) {
+        const endMinutes = parseTime12(parts[1].trim());
+        if (endMinutes !== null && nowMinutes > endMinutes) {
+          cls.status = 'closed';
+        }
+      }
+    }
+
+    return true;
+  });
+}
+
+function getLiveClasses() {
+  return getVisibleClasses().filter(cls => cls.status === 'open');
+}
 
 // ============================================
 // TOAST NOTIFICATIONS
@@ -359,10 +421,8 @@ function renderDashboard() {
             <p style="font-size:13px; color:var(--text-muted);">Real-time Geofenced Attendance Network</p>
           </div>
           <div style="display:flex; align-items:center; gap:14px;">
-            <button onclick="openConfigModal()" title="Supabase Database Settings" class="btn btn-secondary" style="padding:8px 14px; font-size:12px;">⚙️ Database Config</button>
-            <div style="display:inline-flex; align-items:center; gap:6px; background:rgba(16,185,129,0.12); color:var(--mint); border:1px solid rgba(16,185,129,0.3); padding:5px 12px; border-radius:20px; font-size:12px; font-weight:600;">
-              <span style="width:8px; height:8px; border-radius:50%; background:var(--emerald); box-shadow:0 0 8px var(--emerald);"></span>
-              Live Supabase DB
+            <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(16,185,129,0.12); color:var(--mint); border:1px solid rgba(16,185,129,0.3); padding:6px 16px; border-radius:20px; font-size:13px; font-weight:600;">
+              👋 Welcome, ${currentUser.name}
             </div>
           </div>
         </header>
@@ -399,77 +459,91 @@ function renderViewportContent() {
     if (isStudent) {
       const myLogs = attendanceLogs.filter(l => l.student_id === currentUser.id || l.student_name === currentUser.name);
       const presentCount = myLogs.filter(l => l.status === 'present').length;
-      const rate = myLogs.length > 0 ? Math.round((presentCount / myLogs.length) * 100) : 96;
+      const absentCount = myLogs.filter(l => l.status === 'absent').length;
+      const totalSessions = presentCount + absentCount;
+      const rate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
+      const liveClasses = getLiveClasses();
 
       content.innerHTML = `
         <div class="stats-grid">
           <div class="stat-card">
             <div style="font-size:24px; color:var(--emerald); margin-bottom:4px;">📊</div>
             <div style="font-size:13px; color:var(--text-muted);">Overall Attendance Rate</div>
-            <div class="stat-val" style="color:var(--mint);">${rate}%</div>
+            <div class="stat-val" style="color:${rate >= 75 ? 'var(--mint)' : rate >= 50 ? 'var(--amber)' : '#f43f5e'};">${rate}%</div>
           </div>
           <div class="stat-card">
             <div style="font-size:24px; color:var(--blue); margin-bottom:4px;">✓</div>
             <div style="font-size:13px; color:var(--text-muted);">Verified Sessions</div>
-            <div class="stat-val">${presentCount + 14}</div>
+            <div class="stat-val">${presentCount}</div>
           </div>
           <div class="stat-card">
-            <div style="font-size:24px; color:var(--amber); margin-bottom:4px;">📍</div>
-            <div style="font-size:13px; color:var(--text-muted);">Geofence Lock</div>
-            <div class="stat-val" style="font-size:20px; margin-top:12px; color:var(--emerald);">Campus Quad</div>
+            <div style="font-size:24px; color:var(--amber); margin-bottom:4px;">✕</div>
+            <div style="font-size:13px; color:var(--text-muted);">Missed Sessions</div>
+            <div class="stat-val" style="color:#f43f5e;">${absentCount}</div>
           </div>
         </div>
 
         <section style="margin-top:20px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
-            <h3 style="font-size:18px;">Active Class Sessions Today</h3>
+            <h3 style="font-size:18px;">Live Class Sessions</h3>
             <span style="font-size:12px; color:var(--text-muted); background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:12px;">GPS & Face Required</span>
           </div>
 
+          ${liveClasses.length === 0 ? `
+            <div style="text-align:center; padding:40px 20px; color:var(--text-muted); background:rgba(255,255,255,0.03); border-radius:var(--radius-md); border:1px dashed rgba(255,255,255,0.1);">
+              <div style="font-size:36px; margin-bottom:12px;">📭</div>
+              <p style="font-size:15px; font-weight:500;">No live sessions right now</p>
+              <p style="font-size:13px; margin-top:6px;">Sessions will appear here when your faculty opens them during scheduled hours.</p>
+            </div>
+          ` : `
           <div class="class-grid">
-            ${activeClasses.map(cls => {
-        const checkedIn = myLogs.some(l => l.class_id === cls.id || l.class_name === cls.name);
-        return `
+            ${liveClasses.map(cls => {
+              const checkedIn = myLogs.some(l => l.class_id === cls.id || l.class_name === cls.name);
+              return `
                 <div class="class-card">
                   <div>
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
                       <span style="font-size:11px; font-weight:700; color:var(--emerald); text-transform:uppercase;">${cls.course_code || 'CS-301'}</span>
-                      <span class="status-pill ${cls.status}">${cls.status}</span>
+                      <span class="status-pill open">LIVE</span>
                     </div>
                     <h3 style="font-size:17px; margin-bottom:8px;">${cls.name}</h3>
                     <p style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">⏰ ${cls.time || '10:00 AM - 11:30 AM'}<br>📍 ${cls.room || 'Campus Lab 2'}</p>
                   </div>
                   ${checkedIn ? `
                     <button class="btn btn-secondary" style="width:100%; border-color:var(--emerald); color:var(--mint);" disabled>✓ Checked In</button>
-                  ` : cls.status === 'open' ? `
-                    <button onclick="triggerStudentCheckInModal('${cls.id}', '${cls.name}')" class="btn btn-emerald" style="width:100%;">📍 Check In & Mark Attendance</button>
                   ` : `
-                    <button class="btn btn-secondary" style="width:100%; opacity:0.5;" disabled>Session Closed</button>
+                    <button onclick="triggerStudentCheckInModal('${cls.id}', '${cls.name}')" class="btn btn-emerald" style="width:100%;">📍 Check In & Mark Attendance</button>
                   `}
                 </div>
               `;
-      }).join('')}
+            }).join('')}
           </div>
+          `}
         </section>
       `;
     } else {
       // Faculty Dashboard Overview
+      const visibleClasses = getVisibleClasses();
+      const liveCount = visibleClasses.filter(c => c.status === 'open').length;
+      const totalAttendanceRecords = attendanceLogs.length;
+      const avgRate = totalAttendanceRecords > 0 ? Math.round((attendanceLogs.filter(l => l.status === 'present').length / totalAttendanceRecords) * 100) : 0;
+
       content.innerHTML = `
         <div class="stats-grid">
           <div class="stat-card">
             <div style="font-size:24px; color:var(--emerald); margin-bottom:4px;">📚</div>
             <div style="font-size:13px; color:var(--text-muted);">Active Classes</div>
-            <div class="stat-val">${activeClasses.length}</div>
+            <div class="stat-val">${liveCount}</div>
           </div>
           <div class="stat-card">
-            <div style="font-size:24px; color:var(--blue); margin-bottom:4px;">👥</div>
-            <div style="font-size:13px; color:var(--text-muted);">Enrolled Students</div>
-            <div class="stat-val">128</div>
+            <div style="font-size:24px; color:var(--blue); margin-bottom:4px;">📋</div>
+            <div style="font-size:13px; color:var(--text-muted);">Total Sessions</div>
+            <div class="stat-val">${visibleClasses.length}</div>
           </div>
           <div class="stat-card">
             <div style="font-size:24px; color:var(--purple); margin-bottom:4px;">📊</div>
             <div style="font-size:13px; color:var(--text-muted);">Avg Attendance</div>
-            <div class="stat-val" style="color:var(--mint);">91.2%</div>
+            <div class="stat-val" style="color:var(--mint);">${avgRate}%</div>
           </div>
         </div>
 
@@ -479,8 +553,15 @@ function renderViewportContent() {
             <button onclick="openFacultyCreateClassModal()" class="btn btn-emerald">+ Schedule New Class</button>
           </div>
 
+          ${visibleClasses.length === 0 ? `
+            <div style="text-align:center; padding:40px 20px; color:var(--text-muted); background:rgba(255,255,255,0.03); border-radius:var(--radius-md); border:1px dashed rgba(255,255,255,0.1);">
+              <div style="font-size:36px; margin-bottom:12px;">📭</div>
+              <p style="font-size:15px; font-weight:500;">No sessions scheduled</p>
+              <p style="font-size:13px; margin-top:6px;">Click "+ Schedule New Class" to create your first session.</p>
+            </div>
+          ` : `
           <div class="class-grid">
-            ${activeClasses.map(cls => `
+            ${visibleClasses.map(cls => `
               <div class="class-card">
                 <div>
                   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
@@ -497,6 +578,7 @@ function renderViewportContent() {
               </div>
             `).join('')}
           </div>
+          `}
         </section>
       `;
     }
@@ -527,49 +609,109 @@ function renderViewportContent() {
   } else if (activePage === "attendance") {
     title.textContent = "Attendance Log";
 
+    // Get unique class names for filter
+    const classNames = [...new Set(attendanceLogs.map(l => l.class_name || l.class?.name || 'Unknown'))];
+
+    // Get past 30 days dates
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const todayStr = today.toISOString().slice(0, 10);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
+
+    // Filter logs
+    let filteredLogs = attendanceLogs.filter(l => {
+      const logDate = l.date || todayStr;
+      if (logDate < thirtyDaysAgoStr) return false;
+      if (selectedClassFilter !== 'all' && (l.class_name || l.class?.name) !== selectedClassFilter) return false;
+      if (selectedDateFilter && logDate !== selectedDateFilter) return false;
+      return true;
+    });
+
+    // Group by date
+    const groupedByDate = {};
+    filteredLogs.forEach(log => {
+      const dateKey = log.date || todayStr;
+      if (!groupedByDate[dateKey]) groupedByDate[dateKey] = {};
+      const className = log.class_name || log.class?.name || 'Unknown';
+      if (!groupedByDate[dateKey][className]) groupedByDate[dateKey][className] = [];
+      groupedByDate[dateKey][className].push(log);
+    });
+
+    const sortedDates = Object.keys(groupedByDate).sort((a, b) => b.localeCompare(a));
+
     content.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:24px;">
         <div>
           <h3 style="font-size:20px;">Verified Attendance Records</h3>
-          <p style="font-size:13px; color:var(--text-muted);">Live database records synced from GPS & facial validation</p>
+          <p style="font-size:13px; color:var(--text-muted);">Past 30 days · Grouped by date & class</p>
         </div>
-        <button onclick="exportAttendanceCsv()" class="btn btn-secondary">📥 Export CSV Audit</button>
+        <button onclick="exportAttendanceCsv()" class="btn btn-secondary">📥 Export CSV</button>
       </div>
 
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Student</th>
-              <th>Course Subject</th>
-              <th>Date & Time</th>
-              <th>Status</th>
-              <th>GPS Geofence</th>
-              <th>Face Biometric</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${attendanceLogs.length === 0 ? `
-              <tr>
-                <td colspan="6" style="text-align:center; color:var(--text-muted); padding:30px;">No attendance records found in database yet. Check in to log your first record!</td>
-              </tr>
-            ` : attendanceLogs.map(log => `
-              <tr>
-                <td style="font-weight:600;">${log.student_name || log.student?.name || currentUser.name}</td>
-                <td>${log.class_name || log.class?.name || 'Data Structures'}</td>
-                <td style="color:var(--text-muted);">${log.date || new Date().toISOString().slice(0, 10)} at ${log.time || '09:05 AM'}</td>
-                <td>
-                  <span style="padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; background:rgba(16,185,129,0.15); color:var(--mint); border:1px solid rgba(16,185,129,0.3);">
-                    ${log.status || 'present'}
-                  </span>
-                </td>
-                <td style="color:var(--mint); font-size:12px;">🎯 Verified (GPS)</td>
-                <td style="color:var(--mint); font-size:12px;">📸 Biometric 99.2% Match</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+      <div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+        <select id="classFilterSelect" class="input-field" style="width:auto; min-width:200px; padding:8px 12px; font-size:13px;" onchange="window.filterByClass(this.value)">
+          <option value="all" ${selectedClassFilter === 'all' ? 'selected' : ''}>All Classes</option>
+          ${classNames.map(cn => `<option value="${cn}" ${selectedClassFilter === cn ? 'selected' : ''}>${cn}</option>`).join('')}
+        </select>
+        <input type="date" id="dateFilterInput" class="input-field" style="width:auto; padding:8px 12px; font-size:13px;" value="${selectedDateFilter}" min="${thirtyDaysAgoStr}" max="${todayStr}" onchange="window.filterByDate(this.value)" />
+        ${(selectedClassFilter !== 'all' || selectedDateFilter) ? `<button onclick="window.clearFilters()" class="btn btn-secondary" style="padding:8px 14px; font-size:12px;">✕ Clear Filters</button>` : ''}
       </div>
+
+      ${sortedDates.length === 0 ? `
+        <div style="text-align:center; padding:40px 20px; color:var(--text-muted); background:rgba(255,255,255,0.03); border-radius:var(--radius-md); border:1px dashed rgba(255,255,255,0.1);">
+          <div style="font-size:36px; margin-bottom:12px;">📭</div>
+          <p style="font-size:15px; font-weight:500;">No attendance records found</p>
+          <p style="font-size:13px; margin-top:6px;">Check in to a live session to log your first record.</p>
+        </div>
+      ` : sortedDates.map(dateKey => {
+        const classesForDate = groupedByDate[dateKey];
+        return `
+          <div style="margin-bottom:24px;">
+            <h4 style="font-size:15px; color:var(--mint); margin-bottom:12px; padding:8px 14px; background:rgba(16,185,129,0.08); border-radius:var(--radius-md); display:inline-block;">📅 ${dateKey}</h4>
+            ${Object.keys(classesForDate).map(className => {
+              const logs = classesForDate[className];
+              return `
+                <div style="margin-bottom:16px; margin-left:8px;">
+                  <h5 style="font-size:13px; color:var(--text-sub); margin-bottom:8px; font-weight:600;">📚 ${className}</h5>
+                  <div class="data-table-container">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Student</th>
+                          <th>Roll No.</th>
+                          <th>Time</th>
+                          <th>Status</th>
+                          <th>GPS</th>
+                          <th>Face</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${logs.map(log => {
+                          const isPres = (log.status || 'present') === 'present';
+                          return `
+                          <tr>
+                            <td style="font-weight:600;">${log.student_name || log.student?.name || currentUser.name}</td>
+                            <td style="color:var(--text-muted); font-size:12px;">${log.roll_number || log.student?.roll_number || currentUser.roll_number || '—'}</td>
+                            <td style="color:var(--text-muted);">${log.time || '—'}</td>
+                            <td>
+                              <span style="padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; background:${isPres ? 'rgba(16,185,129,0.15)' : 'rgba(244,63,94,0.15)'}; color:${isPres ? 'var(--mint)' : '#f43f5e'}; border:1px solid ${isPres ? 'rgba(16,185,129,0.3)' : 'rgba(244,63,94,0.3)'};">
+                                ${log.status || 'present'}
+                              </span>
+                            </td>
+                            <td style="color:var(--mint); font-size:12px;">${isPres ? '🎯 Verified' : '—'}</td>
+                            <td style="color:var(--mint); font-size:12px;">${isPres ? '📸 Matched' : '—'}</td>
+                          </tr>
+                        `}).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }).join('')}
     `;
   }
 }
@@ -664,6 +806,9 @@ window.submitStudentAttendance = async function (classId, className) {
 // ============================================
 
 window.openFacultyCreateClassModal = function () {
+  const timeSlots = generateTimeSlots();
+  const timeOptions = timeSlots.map(t => `<option value="${t}">${t}</option>`).join('');
+
   const modalHtml = `
     <div class="modal-overlay" id="activeAppModal">
       <div class="modal-dialog">
@@ -683,13 +828,23 @@ window.openFacultyCreateClassModal = function () {
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
               <div class="form-group">
-                <label>Time Schedule</label>
-                <input id="newClsTime" type="text" class="input-field" placeholder="10:00 AM - 11:30 AM" required />
+                <label>Start Time</label>
+                <select id="newClsStartTime" class="input-field" required>
+                  <option value="" disabled selected>Select start time</option>
+                  ${timeOptions}
+                </select>
               </div>
               <div class="form-group">
-                <label>Room Location</label>
-                <input id="newClsRoom" type="text" class="input-field" placeholder="Lab 4 · Room 201" required />
+                <label>End Time</label>
+                <select id="newClsEndTime" class="input-field" required>
+                  <option value="" disabled selected>Select end time</option>
+                  ${timeOptions}
+                </select>
               </div>
+            </div>
+            <div class="form-group">
+              <label>Room Location</label>
+              <input id="newClsRoom" type="text" class="input-field" placeholder="Lab 4 · Room 201" required />
             </div>
           </form>
         </div>
@@ -706,18 +861,25 @@ window.openFacultyCreateClassModal = function () {
 window.submitFacultyNewClass = async function () {
   const name = document.getElementById("newClsName").value.trim();
   const code = document.getElementById("newClsCode").value.trim();
-  const time = document.getElementById("newClsTime").value.trim();
+  const startTime = document.getElementById("newClsStartTime").value;
+  const endTime = document.getElementById("newClsEndTime").value;
   const room = document.getElementById("newClsRoom").value.trim();
 
-  if (!name || !code) return;
+  if (!name || !code || !startTime || !endTime) {
+    showToast("Please fill all fields including start and end time.", "error");
+    return;
+  }
+
+  const time = `${startTime} - ${endTime}`;
 
   const newClassObj = {
     id: `cls_${Date.now()}`,
     name,
     course_code: code,
-    time: time || '10:00 AM',
+    time,
     room: room || 'Main Hall',
-    status: 'open'
+    status: 'open',
+    created_at: new Date().toISOString()
   };
 
   await window.db.createClass(newClassObj);
@@ -845,14 +1007,32 @@ window.closeAppModal = function () {
 window.handleSignOut = async function () {
   if (window.db) await window.db.signOut();
   currentUser = null;
+  localStorage.removeItem("attendly_supabase_url");
+  localStorage.removeItem("attendly_supabase_key");
   showToast("Signed out successfully", "info");
   renderAuthView("login");
 };
 
+window.filterByClass = function (val) {
+  selectedClassFilter = val;
+  renderViewportContent();
+};
+
+window.filterByDate = function (val) {
+  selectedDateFilter = val;
+  renderViewportContent();
+};
+
+window.clearFilters = function () {
+  selectedClassFilter = 'all';
+  selectedDateFilter = '';
+  renderViewportContent();
+};
+
 window.exportAttendanceCsv = function () {
-  let csv = "Student Name,Course Subject,Date,Time,Status,GPS Verified,Face Verified\n";
+  let csv = "Student Name,Roll No,Course Subject,Date,Time,Status,GPS Verified,Face Verified\n";
   attendanceLogs.forEach(l => {
-    csv += `"${l.student_name || currentUser.name}","${l.class_name || 'Data Structures'}","${l.date || '2026-09-07'}","${l.time || '09:00 AM'}","${l.status || 'present'}","Yes","Yes"\n`;
+    csv += `"${l.student_name || currentUser.name}","${l.roll_number || currentUser.roll_number || ''}","${l.class_name || 'Unknown'}","${l.date || ''}","${l.time || ''}","${l.status || 'present'}","Yes","Yes"\n`;
   });
 
   const blob = new Blob([csv], { type: "text/csv" });
