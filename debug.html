@@ -1,0 +1,45 @@
+<!-- Debug Helper -->
+<!-- Open browser console and run these commands to test Supabase connection -->
+
+<!-- TEST 1: Check if Supabase library loaded -->
+<script>
+  if (typeof supabase !== 'undefined') {
+    console.log('✅ Supabase library loaded');
+  } else {
+    console.error('❌ Supabase library NOT loaded - check CDN link');
+  }
+</script>
+
+<!-- TEST 2: Check if db object exists (waits 1 second for scripts to load) -->
+<script>
+  setTimeout(() => {
+    if (typeof db !== 'undefined') {
+      console.log('✅ db object is defined');
+      console.log('  Available functions:', Object.keys(db));
+    } else {
+      console.error('❌ db object NOT defined - check supabase-config.js');
+    }
+  }, 1000);
+</script>
+
+<!-- TEST 3: Try to get session -->
+<script>
+  setTimeout(() => {
+    if (typeof db !== 'undefined' && db.supabase) {
+      db.supabase.auth.getSession()
+        .then(result => {
+          console.log('✅ Supabase connection works!');
+          console.log('  Session:', result);
+        })
+        .catch(err => {
+          console.error('❌ Connection error:', err.message);
+        });
+    }
+  }, 2000);
+</script>
+
+<!-- Instructions:
+1. Save this as debug.html in your project folder
+2. Open it in browser: http://10.248.189.131:5173/debug.html
+3. Open Console (F12) to see results
+-->
