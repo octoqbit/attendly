@@ -197,7 +197,7 @@ function renderAuthView(mode = "login", errorMsg = "") {
             </div>
           </div>
         </div>
-        <div style="font-size:12px; color:var(--text-muted);">© 2026 Attendly Systems · Powered by Supabase</div>
+        <div style="font-size:12px; color:var(--text-muted);">© 2026 Attendly Systems </div>
       </section>
 
       <section class="auth-form-shell">
@@ -422,7 +422,7 @@ function renderDashboard() {
           </div>
           <div style="display:flex; align-items:center; gap:14px;">
             <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(16,185,129,0.12); color:var(--mint); border:1px solid rgba(16,185,129,0.3); padding:6px 16px; border-radius:20px; font-size:13px; font-weight:600;">
-              👋 Welcome, ${currentUser.name}
+               Welcome, ${currentUser.name}
             </div>
           </div>
         </header>
