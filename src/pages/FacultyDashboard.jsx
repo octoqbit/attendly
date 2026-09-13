@@ -40,9 +40,14 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
   // Toggle class open/closed
   async function toggleStatus(cls) {
     const newStatus = cls.status === 'open' ? 'closed' : 'open';
-    await db.updateClassStatus(cls.id, newStatus);
-    onClassUpdated(cls.id, { status: newStatus });
-    showToast(`Session for ${cls.name} is now ${newStatus.toUpperCase()}`);
+    const res = await db.updateClassStatus(cls.id, newStatus);
+    
+    if (res.success) {
+      onClassUpdated(cls.id, { status: newStatus });
+      showToast(`Session for ${cls.name} is now ${newStatus.toUpperCase()}`);
+    } else {
+      showToast(`Failed to update status: ${res.error}`, 'error');
+    }
   }
 
   // Create new class
@@ -62,6 +67,7 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
     const time = `${startTime} - ${endTime}`;
     const newClassObj = {
       id: `cls_${Date.now()}`,
+      faculty_id: user.id,
       name,
       course_code: code,
       time,
