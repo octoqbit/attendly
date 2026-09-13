@@ -79,13 +79,11 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
     const res = await db.createClass(newClassObj);
     if (res.success && res.data) {
       onClassCreated(res.data);
+      setCreateModal(false);
+      showToast(`Class session "${name}" has been scheduled. Click 'Open' when you are ready to accept check-ins!`);
     } else {
-      // Fallback: use local object
-      onClassCreated(newClassObj);
+      showToast(`Failed to create class: ${res.error}`, 'error');
     }
-
-    setCreateModal(false);
-    showToast(`Class session "${name}" has been scheduled. Click 'Open' when you are ready to accept check-ins!`);
   }
 
   // Delete class (soft-delete with double confirmation)
@@ -189,23 +187,23 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
           <form id="createClassForm" onSubmit={handleCreateClass}>
             <div className="form-group">
               <label>Course Subject Name</label>
-              <input name="clsName" type="text" className="input-field" placeholder="e.g. Cloud Computing & DevOps" required />
+              <input name="clsName" type="text" className="input-field" placeholder="e.g. Cloud Computing & DevOps" />
             </div>
             <div className="form-group">
               <label>Course Code</label>
-              <input name="clsCode" type="text" className="input-field" placeholder="e.g. CS-402" required />
+              <input name="clsCode" type="text" className="input-field" placeholder="e.g. CS-402" />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div className="form-group">
                 <label>Start Time</label>
-                <select name="clsStart" className="input-field" required defaultValue="">
+                <select name="clsStart" className="input-field" defaultValue="">
                   <option value="" disabled>Select start time</option>
                   {timeSlots.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label>End Time</label>
-                <select name="clsEnd" className="input-field" required defaultValue="">
+                <select name="clsEnd" className="input-field" defaultValue="">
                   <option value="" disabled>Select end time</option>
                   {timeSlots.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -213,7 +211,7 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
             </div>
             <div className="form-group">
               <label>Room Location</label>
-              <input name="clsRoom" type="text" className="input-field" placeholder="Lab 4 · Room 201" required />
+              <input name="clsRoom" type="text" className="input-field" placeholder="Lab 4 · Room 201" />
             </div>
           </form>
         </Modal>
