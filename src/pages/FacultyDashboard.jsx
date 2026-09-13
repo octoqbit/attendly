@@ -5,19 +5,15 @@ import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 /**
- * Time slot generator for class scheduling.
+ * Formats a 24-hour time string (HH:MM) to 12-hour AM/PM format.
  */
-function generateTimeSlots() {
-  const slots = [];
-  for (let h = 7; h <= 21; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      const minStr = m === 0 ? '00' : '30';
-      slots.push(`${hour12}:${minStr} ${ampm}`);
-    }
-  }
-  return slots;
+function formatTime12Hour(time24) {
+  if (!time24) return '';
+  let [h, m] = time24.split(':');
+  h = parseInt(h, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${m} ${ampm}`;
 }
 
 /**
@@ -55,16 +51,16 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
     e.preventDefault();
     const name = e.target.clsName.value.trim();
     const code = e.target.clsCode.value.trim();
-    const startTime = e.target.clsStart.value;
-    const endTime = e.target.clsEnd.value;
+    const startTimeRaw = e.target.clsStart.value;
+    const endTimeRaw = e.target.clsEnd.value;
     const room = e.target.clsRoom.value.trim();
 
-    if (!name || !code || !startTime || !endTime) {
+    if (!name || !code || !startTimeRaw || !endTimeRaw) {
       showToast('Please fill all fields including start and end time.', 'error');
       return;
     }
 
-    const time = `${startTime} - ${endTime}`;
+    const time = `${formatTime12Hour(startTimeRaw)} - ${formatTime12Hour(endTimeRaw)}`;
     const newClassObj = {
       id: `cls_${Date.now()}`,
       faculty_id: user.id,
@@ -94,8 +90,6 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
     showToast(`Session "${deleteTarget.name}" has been deleted.`);
     setDeleteTarget(null);
   }
-
-  const timeSlots = generateTimeSlots();
 
   return (
     <>
@@ -196,17 +190,11 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <div className="form-group">
                 <label>Start Time</label>
-                <select name="clsStart" className="input-field" defaultValue="">
-                  <option value="" disabled>Select start time</option>
-                  {timeSlots.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <input name="clsStart" type="time" className="input-field" />
               </div>
               <div className="form-group">
                 <label>End Time</label>
-                <select name="clsEnd" className="input-field" defaultValue="">
-                  <option value="" disabled>Select end time</option>
-                  {timeSlots.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <input name="clsEnd" type="time" className="input-field" />
               </div>
             </div>
             <div className="form-group">
