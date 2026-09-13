@@ -66,7 +66,7 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
       course_code: code,
       time,
       room: room || 'Main Hall',
-      status: 'open',
+      status: 'closed',
       created_at: new Date().toISOString()
     };
 
@@ -79,7 +79,7 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
     }
 
     setCreateModal(false);
-    showToast(`Class session "${name}" created & opened for check-in!`);
+    showToast(`Class session "${name}" has been scheduled. Click 'Open' when you are ready to accept check-ins!`);
   }
 
   // Delete class (soft-delete with double confirmation)
@@ -176,7 +176,7 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
           footer={
             <>
               <button className="btn btn-secondary" onClick={() => setCreateModal(false)}>Cancel</button>
-              <button type="submit" form="createClassForm" className="btn btn-emerald">Save & Open Class Session</button>
+              <button type="submit" form="createClassForm" className="btn btn-emerald">Save Scheduled Session</button>
             </>
           }
         >
