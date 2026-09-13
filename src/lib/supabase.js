@@ -143,6 +143,7 @@ export async function createClass(classObj) {
     const { data, error } = await supabase
       .from('classes')
       .insert([{
+        faculty_id: classObj.faculty_id || null,
         name: classObj.name,
         course_code: classObj.course_code || '',
         branch: classObj.branch || '',
