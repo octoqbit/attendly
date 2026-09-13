@@ -150,7 +150,7 @@ export async function createClass(classObj) {
         description: classObj.description || '',
         time: classObj.time || '',
         room: classObj.room || '',
-        status: 'open'
+        status: 'closed'
       }])
       .select();
 
