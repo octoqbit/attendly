@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import * as db from '../lib/supabase';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -21,6 +22,7 @@ function formatTime12Hour(time24) {
  * Classes update in real-time.
  */
 export default function FacultyDashboard({ classes, attendanceLogs, onClassCreated, onClassDeleted, onClassUpdated }) {
+  const { user } = useAuth();
   const showToast = useToast();
   const [createModal, setCreateModal] = useState(false);
   const [rosterModal, setRosterModal] = useState(null);
@@ -171,14 +173,9 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
         <Modal
           title="📚 Schedule New Class Session"
           onClose={() => setCreateModal(false)}
-          footer={
-            <>
-              <button className="btn btn-secondary" onClick={() => setCreateModal(false)}>Cancel</button>
-              <button type="submit" form="createClassForm" className="btn btn-emerald">Save Scheduled Session</button>
-            </>
-          }
         >
-          <form id="createClassForm" onSubmit={handleCreateClass}>
+          <form id="createClassForm" onSubmit={handleCreateClass} style={{ margin: '-24px -28px' }}>
+            <div style={{ padding: '24px 28px' }}>
             <div className="form-group">
               <label>Course Subject Name</label>
               <input name="clsName" type="text" className="input-field" placeholder="e.g. Cloud Computing & DevOps" />
@@ -197,9 +194,15 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
                 <input name="clsEnd" type="time" className="input-field" />
               </div>
             </div>
-            <div className="form-group">
-              <label>Room Location</label>
-              <input name="clsRoom" type="text" className="input-field" placeholder="Lab 4 · Room 201" />
+              <div className="form-group">
+                <label>Room Location</label>
+                <input name="clsRoom" type="text" className="input-field" placeholder="Lab 4 · Room 201" />
+              </div>
+            </div>
+            
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setCreateModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-emerald">Save Scheduled Session</button>
             </div>
           </form>
         </Modal>
