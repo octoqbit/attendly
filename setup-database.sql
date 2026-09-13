@@ -23,10 +23,13 @@ CREATE TABLE IF NOT EXISTS classes (
   branch TEXT DEFAULT '',
   year TEXT DEFAULT '',
   description TEXT DEFAULT '',
+  time TEXT DEFAULT '',
+  room TEXT DEFAULT '',
   is_scheduled BOOLEAN DEFAULT FALSE,
   scheduled_date DATE,
   opening_time TIME,
   closing_time TIME,
+  is_deleted BOOLEAN DEFAULT FALSE,
   status TEXT DEFAULT 'open' CHECK (status IN ('open', 'closed')),
   created_at TIMESTAMP DEFAULT NOW()
 );
@@ -49,11 +52,15 @@ CREATE INDEX IF NOT EXISTS idx_classes_faculty_id ON classes(faculty_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_class_id ON attendance(class_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_id ON attendance(student_id);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_classes_is_deleted ON classes(is_deleted);
 
 -- ✅ Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+
+-- ✅ Enable Realtime for classes table (required for live updates)
+ALTER PUBLICATION supabase_realtime ADD TABLE classes;
 
 -- ✅ Create RLS policies - Allow all for now (you can restrict later)
 -- Drop existing policies first (safe to re-run)
@@ -71,3 +78,12 @@ CREATE POLICY "Enable all access" ON attendance
   FOR ALL USING (true);
 
 -- ✅ Done!
+
+-- ============================================================
+-- MIGRATION: Run this on an existing database to add new columns
+-- ============================================================
+-- ALTER TABLE classes ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+-- ALTER TABLE classes ADD COLUMN IF NOT EXISTS time TEXT DEFAULT '';
+-- ALTER TABLE classes ADD COLUMN IF NOT EXISTS room TEXT DEFAULT '';
+-- CREATE INDEX IF NOT EXISTS idx_classes_is_deleted ON classes(is_deleted);
+-- ALTER PUBLICATION supabase_realtime ADD TABLE classes;
