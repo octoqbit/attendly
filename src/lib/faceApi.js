@@ -67,36 +67,10 @@ export async function detectFaceLiveness(videoElement) {
   const avgEAR = (leftEAR + rightEAR) / 2.0;
   const isBlinking = avgEAR < 0.28;
 
-  // 2. Tilt Head (Roll)
-  const leftEyeCenter = leftEye.reduce((acc, curr) => ({ x: acc.x + curr.x, y: acc.y + curr.y }), { x: 0, y: 0 });
-  leftEyeCenter.x /= 6; leftEyeCenter.y /= 6;
-  const rightEyeCenter = rightEye.reduce((acc, curr) => ({ x: acc.x + curr.x, y: acc.y + curr.y }), { x: 0, y: 0 });
-  rightEyeCenter.x /= 6; rightEyeCenter.y /= 6;
-  
-  const dy = rightEyeCenter.y - leftEyeCenter.y;
-  const dx = rightEyeCenter.x - leftEyeCenter.x;
-  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-  const isTilted = Math.abs(angle) > 15; // > 15 degrees tilt
-
-  // 3. Head Up/Down (Pitch)
-  const pts = landmarks.positions;
-  const nose = pts[30]; // nose tip
-  const top = pts[27]; // between eyes
-  const chin = pts[8]; // chin tip
-  
-  const distTop = euclideanDist(nose, top);
-  const distBottom = euclideanDist(nose, chin);
-  const pitchRatio = distBottom / (distTop || 1);
-  
-  // Normal ratio is around 1.1 - 1.4. > 1.8 is head up, < 0.8 is head down
-  const isHeadUpOrDown = pitchRatio > 1.8 || pitchRatio < 0.8;
-
   return { 
     face: detection, 
     actions: {
-      blink: isBlinking,
-      tilt_head: isTilted,
-      head_up_down: isHeadUpOrDown
+      blink: isBlinking
     } 
   };
 }
