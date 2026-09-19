@@ -1,18 +1,36 @@
 import * as faceapi from '@vladmandic/face-api';
+import * as tf from '@tensorflow/tfjs';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
 
 let modelsLoaded = false;
+let cocoSsdModel = null;
 
 export async function loadModels() {
   if (modelsLoaded) return;
   const MODEL_URL = '/models';
   
-  await Promise.all([
-    faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+  // Set tf backend (optional, but good practice for tfjs)
+  await tf.ready();
+
+  const [_, ssd] = await Promise.all([
+    Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+    ]),
+    cocoSsd.load()
   ]);
   
+  cocoSsdModel = ssd;
   modelsLoaded = true;
+}
+
+export async function detectSpoofingPhone(videoElement) {
+  if (!cocoSsdModel) return false;
+  
+  const predictions = await cocoSsdModel.detect(videoElement);
+  // Check if any prediction is a 'cell phone'
+  return predictions.some(p => p.class === 'cell phone' && p.score > 0.5);
 }
 
 function euclideanDist(p1, p2) {
@@ -49,42 +67,36 @@ export async function detectFaceLiveness(videoElement) {
   const avgEAR = (leftEAR + rightEAR) / 2.0;
   const isBlinking = avgEAR < 0.28;
 
-  // 2. Head Turn (Yaw)
-  const pts = landmarks.positions;
-  // index 30 = nose tip, index 0 = left jaw edge, index 16 = right jaw edge
-  const nose = pts[30];
-  const leftEdge = pts[0];
-  const rightEdge = pts[16];
+  // 2. Tilt Head (Roll)
+  const leftEyeCenter = leftEye.reduce((acc, curr) => ({ x: acc.x + curr.x, y: acc.y + curr.y }), { x: 0, y: 0 });
+  leftEyeCenter.x /= 6; leftEyeCenter.y /= 6;
+  const rightEyeCenter = rightEye.reduce((acc, curr) => ({ x: acc.x + curr.x, y: acc.y + curr.y }), { x: 0, y: 0 });
+  rightEyeCenter.x /= 6; rightEyeCenter.y /= 6;
   
-  const distLeft = euclideanDist(nose, leftEdge);
-  const distRight = euclideanDist(nose, rightEdge);
-  const headRatio = distLeft / (distRight || 1);
-  
-  const isTurnedRight = headRatio > 1.6; // Looking towards their right
-  const isTurnedLeft = headRatio < 0.6;  // Looking towards their left
+  const dy = rightEyeCenter.y - leftEyeCenter.y;
+  const dx = rightEyeCenter.x - leftEyeCenter.x;
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  const isTilted = Math.abs(angle) > 15; // > 15 degrees tilt
 
-  // 3. Open Mouth (MAR)
-  // Inner mouth points: 60 to 67
-  const mCornerLeft = pts[60];
-  const mCornerRight = pts[64];
-  const mTop1 = pts[61]; const mTop2 = pts[62]; const mTop3 = pts[63];
-  const mBot1 = pts[67]; const mBot2 = pts[66]; const mBot3 = pts[65];
+  // 3. Head Up/Down (Pitch)
+  const pts = landmarks.positions;
+  const nose = pts[30]; // nose tip
+  const top = pts[27]; // between eyes
+  const chin = pts[8]; // chin tip
   
-  const v1 = euclideanDist(mTop1, mBot1);
-  const v2 = euclideanDist(mTop2, mBot2);
-  const v3 = euclideanDist(mTop3, mBot3);
-  const hMouth = euclideanDist(mCornerLeft, mCornerRight) || 1;
-  const mar = (v1 + v2 + v3) / (3.0 * hMouth);
+  const distTop = euclideanDist(nose, top);
+  const distBottom = euclideanDist(nose, chin);
+  const pitchRatio = distBottom / (distTop || 1);
   
-  const isOpenMouth = mar > 0.5;
+  // Normal ratio is around 1.1 - 1.4. > 1.8 is head up, < 0.8 is head down
+  const isHeadUpOrDown = pitchRatio > 1.8 || pitchRatio < 0.8;
 
   return { 
     face: detection, 
     actions: {
       blink: isBlinking,
-      turn_left: isTurnedLeft,
-      turn_right: isTurnedRight,
-      open_mouth: isOpenMouth
+      tilt_head: isTilted,
+      head_up_down: isHeadUpOrDown
     } 
   };
 }

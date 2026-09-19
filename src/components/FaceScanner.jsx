@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as faceapi from '@vladmandic/face-api';
-import { loadModels, detectFaceLiveness } from '../lib/faceApi';
+import { loadModels, detectFaceLiveness, detectSpoofingPhone } from '../lib/faceApi';
 
 const LIVENESS_CHALLENGES = [
-  { id: 'blink', text: 'Please blink your eyes' },
-  { id: 'turn_left', text: 'Turn your head slightly to the left' },
-  { id: 'turn_right', text: 'Turn your head slightly to the right' },
-  { id: 'open_mouth', text: 'Open your mouth wide' }
+  { id: 'blink', text: 'Please blink your eyes once or twice' },
+  { id: 'tilt_head', text: 'Tilt your head left to right' },
+  { id: 'head_up_down', text: 'Nod your head up and down' }
 ];
 
 export default function FaceScanner({ onCapture, onClose }) {
@@ -56,10 +55,26 @@ export default function FaceScanner({ onCapture, onClose }) {
       let localIdx = 0;
       let lastActionCompleteTime = Date.now();
       let challengeStartTime = Date.now();
-      const TIME_LIMIT_MS = 4000; // 4 seconds max per challenge
+      const TIME_LIMIT_MS = 7000; // 7 seconds max per challenge
+
+      let lastPhoneCheck = Date.now();
 
       const scanLoop = async () => {
         if (!video || video.paused || video.ended) return;
+
+        const now = Date.now();
+
+        // Phone spoofing detection check (runs every 1 second to save CPU)
+        if (now - lastPhoneCheck > 1000) {
+          lastPhoneCheck = now;
+          const isSpoofing = await detectSpoofingPhone(video);
+          if (isSpoofing) {
+            setStatus('🚨 SECURITY ALERT: Cell phone detected! Spoofing attempt blocked.');
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            setTimeout(onClose, 3000); // Auto-close after 3s
+            return;
+          }
+        }
 
         const { face, actions } = await detectFaceLiveness(video);
 
@@ -71,7 +86,6 @@ export default function FaceScanner({ onCapture, onClose }) {
           faceapi.draw.drawDetections(canvas, resizedDetections);
           faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
 
-          const now = Date.now();
           
           if (localIdx < challenges.length) {
             const timeElapsed = now - challengeStartTime;

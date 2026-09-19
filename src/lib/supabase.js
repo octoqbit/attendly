@@ -165,11 +165,16 @@ export async function createClass(classObj) {
   }
 }
 
-export async function updateClassStatus(classId, status) {
+export async function updateClassStatus(classId, status, lat = null, lng = null) {
   try {
+    const updateData = { status };
+    if (lat !== null && lng !== null) {
+      updateData.latitude = lat;
+      updateData.longitude = lng;
+    }
     const { error } = await supabase
       .from('classes')
-      .update({ status })
+      .update(updateData)
       .eq('id', classId);
 
     if (error) throw error;

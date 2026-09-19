@@ -10,13 +10,19 @@ import StudentDashboard from './pages/StudentDashboard';
 import FacultyDashboard from './pages/FacultyDashboard';
 import ClassManagement from './pages/ClassManagement';
 import AttendanceLog from './pages/AttendanceLog';
-
 import AdminDashboard from './pages/AdminDashboard';
+
+import { loadModels } from './lib/faceApi';
 
 import './index.css';
 
 export default function App() {
   const { user, loading, isAdmin, isApproved, loginMode, logout } = useAuth();
+
+  useEffect(() => {
+    // Pre-load ML models in the background so face scanner starts instantly
+    loadModels().catch(console.error);
+  }, []);
 
   if (loading) {
     return (

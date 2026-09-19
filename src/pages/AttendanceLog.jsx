@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function AttendanceLog({ attendanceLogs }) {
-  const { user } = useAuth();
+  const { user, isStudent } = useAuth();
   const [classFilter, setClassFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
 
@@ -12,14 +12,22 @@ export default function AttendanceLog({ attendanceLogs }) {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
 
+  // Filter logs for students (they only see their own)
+  const displayLogs = useMemo(() => {
+    if (isStudent || user?.role === 'student') {
+      return attendanceLogs.filter(l => l.student_id === user.id || l.student_name === user.name);
+    }
+    return attendanceLogs;
+  }, [attendanceLogs, user, isStudent]);
+
   // Unique class names
   const classNames = useMemo(() => {
-    return [...new Set(attendanceLogs.map(l => l.class_name || l.class?.name || 'Unknown'))];
-  }, [attendanceLogs]);
+    return [...new Set(displayLogs.map(l => l.class_name || l.class?.name || 'Unknown'))];
+  }, [displayLogs]);
 
   // Filter & group
   const groupedByDate = useMemo(() => {
-    let filtered = attendanceLogs.filter(l => {
+    let filtered = displayLogs.filter(l => {
       const logDate = l.date || todayStr;
       if (logDate < thirtyDaysAgoStr) return false;
       if (classFilter !== 'all' && (l.class_name || l.class?.name) !== classFilter) return false;
@@ -43,7 +51,7 @@ export default function AttendanceLog({ attendanceLogs }) {
 
   function exportCsv() {
     let csv = 'Student Name,Roll No,Course Subject,Date,Time,Status,GPS Verified,Face Verified\n';
-    attendanceLogs.forEach(l => {
+    displayLogs.forEach(l => {
       csv += `"${l.student_name || user.name}","${l.roll_number || user.roll_number || ''}","${l.class_name || 'Unknown'}","${l.date || ''}","${l.time || ''}","${l.status || 'present'}","Yes","Yes"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });

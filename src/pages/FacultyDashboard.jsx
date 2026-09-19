@@ -38,13 +38,52 @@ export default function FacultyDashboard({ classes, attendanceLogs, onClassCreat
   // Toggle class open/closed
   async function toggleStatus(cls) {
     const newStatus = cls.status === 'open' ? 'closed' : 'open';
-    const res = await db.updateClassStatus(cls.id, newStatus);
     
-    if (res.success) {
-      onClassUpdated(cls.id, { status: newStatus });
-      showToast(`Session for ${cls.name} is now ${newStatus.toUpperCase()}`);
+    if (newStatus === 'open') {
+      showToast('Fetching location to start class...', 'info');
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const res = await db.updateClassStatus(cls.id, newStatus, lat, lng);
+            
+            if (res.success) {
+              onClassUpdated(cls.id, { status: newStatus, latitude: lat, longitude: lng });
+              showToast(`Session for ${cls.name} is now OPEN at your location`);
+            } else {
+              showToast(`Failed to update status: ${res.error}`, 'error');
+            }
+          },
+          async () => {
+            showToast('Could not get location. Opening without location restriction.', 'error');
+            const res = await db.updateClassStatus(cls.id, newStatus);
+            if (res.success) {
+              onClassUpdated(cls.id, { status: newStatus });
+              showToast(`Session for ${cls.name} is now OPEN`);
+            } else {
+              showToast(`Failed to update status: ${res.error}`, 'error');
+            }
+          },
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+        );
+      } else {
+        const res = await db.updateClassStatus(cls.id, newStatus);
+        if (res.success) {
+          onClassUpdated(cls.id, { status: newStatus });
+          showToast(`Session for ${cls.name} is now OPEN`);
+        } else {
+          showToast(`Failed to update status: ${res.error}`, 'error');
+        }
+      }
     } else {
-      showToast(`Failed to update status: ${res.error}`, 'error');
+      const res = await db.updateClassStatus(cls.id, newStatus);
+      if (res.success) {
+        onClassUpdated(cls.id, { status: newStatus });
+        showToast(`Session for ${cls.name} is now CLOSED`);
+      } else {
+        showToast(`Failed to update status: ${res.error}`, 'error');
+      }
     }
   }
 

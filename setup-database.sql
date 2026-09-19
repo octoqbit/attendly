@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS classes (
   closing_time TIME,
   is_deleted BOOLEAN DEFAULT FALSE,
   status TEXT DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  latitude FLOAT8,
+  longitude FLOAT8,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -85,6 +87,8 @@ CREATE POLICY "Enable all access" ON attendance
 -- ALTER TABLE classes ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
 -- ALTER TABLE classes ADD COLUMN IF NOT EXISTS time TEXT DEFAULT '';
 -- ALTER TABLE classes ADD COLUMN IF NOT EXISTS room TEXT DEFAULT '';
+-- ALTER TABLE classes ADD COLUMN IF NOT EXISTS latitude FLOAT8;
+-- ALTER TABLE classes ADD COLUMN IF NOT EXISTS longitude FLOAT8;
 -- CREATE INDEX IF NOT EXISTS idx_classes_is_deleted ON classes(is_deleted);
 -- ALTER PUBLICATION supabase_realtime ADD TABLE classes;
 

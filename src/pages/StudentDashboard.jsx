@@ -37,17 +37,17 @@ export default function StudentDashboard({ classes, attendanceLogs }) {
         (pos) => {
           setCheckInModal({
             ...cls,
-            lat: pos.coords.latitude.toFixed(4),
-            lng: pos.coords.longitude.toFixed(4)
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
           });
         },
         () => {
-          setCheckInModal({ ...cls, lat: '18.5204', lng: '73.8567' });
+          setCheckInModal({ ...cls, lat: 18.5204, lng: 73.8567 });
         },
-        { timeout: 5000 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
     } else {
-      setCheckInModal({ ...cls, lat: '18.5204', lng: '73.8567' });
+      setCheckInModal({ ...cls, lat: 18.5204, lng: 73.8567 });
     }
     
     // Start face scanner
@@ -82,8 +82,47 @@ export default function StudentDashboard({ classes, attendanceLogs }) {
     }
   }
 
+  // Haversine formula (Fallback if Google Maps is not loaded)
+  function fallbackDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; 
+    const dLat = (lat2 - lat1) * (Math.PI/180);
+    const dLon = (lon2 - lon1) * (Math.PI/180); 
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c; 
+  }
+
+  // Google Maps API Distance Calculation
+  function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+    if (window.google && window.google.maps && window.google.maps.geometry) {
+      const p1 = new window.google.maps.LatLng(lat1, lon1);
+      const p2 = new window.google.maps.LatLng(lat2, lon2);
+      return window.google.maps.geometry.spherical.computeDistanceBetween(p1, p2);
+    }
+    return fallbackDistance(lat1, lon1, lat2, lon2);
+  }
+
   async function submitAttendance() {
     if (!checkInModal) return;
+
+    if (checkInModal.latitude && checkInModal.longitude) {
+      const distance = getDistanceFromLatLonInMeters(
+        checkInModal.latitude,
+        checkInModal.longitude,
+        parseFloat(checkInModal.lat),
+        parseFloat(checkInModal.lng)
+      );
+      
+      if (distance > 5) {
+        showToast(`You are too far from the class (${Math.round(distance)}m). You must be within 5m.`, 'error');
+        setCheckInModal(null);
+        return;
+      }
+    }
+
     showToast('Saving attendance to Supabase database...', 'info');
 
     await db.markAttendance(checkInModal.id, user.id, true, true);
@@ -216,7 +255,7 @@ export default function StudentDashboard({ classes, attendanceLogs }) {
             <div>
               <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--mint)' }}>GPS Coordinates Locked</div>
               <div style={{ fontSize: '12px', color: 'var(--text-sub)' }}>
-                Latitude {checkInModal.lat}° N, Longitude {checkInModal.lng}° E · Accuracy ±4 meters
+                Latitude {parseFloat(checkInModal.lat).toFixed(4)}° N, Longitude {parseFloat(checkInModal.lng).toFixed(4)}° E · Accuracy ±4 meters
               </div>
             </div>
           </div>
