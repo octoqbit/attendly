@@ -115,8 +115,8 @@ export default function StudentDashboard({ classes, attendanceLogs }) {
         parseFloat(checkInModal.lat),
         parseFloat(checkInModal.lng)
       );
-      
-      if (distance > 5) {
+      //here change the distance to change the area 
+      if (distance > 10) {
         showToast(`You are too far from the class (${Math.round(distance)}m). You must be within 5m.`, 'error');
         setCheckInModal(null);
         return;
