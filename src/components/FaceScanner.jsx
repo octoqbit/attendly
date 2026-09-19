@@ -3,9 +3,7 @@ import * as faceapi from '@vladmandic/face-api';
 import { loadModels, detectFaceLiveness, detectSpoofingPhone } from '../lib/faceApi';
 
 const LIVENESS_CHALLENGES = [
-  { id: 'blink', text: 'Please blink your eyes once or twice' },
-  { id: 'tilt_head', text: 'Tilt your head left to right' },
-  { id: 'head_up_down', text: 'Nod your head up and down' }
+  { id: 'blink', text: 'Please blink your eyes once or twice to capture' }
 ];
 
 export default function FaceScanner({ onCapture, onClose }) {
@@ -17,28 +15,33 @@ export default function FaceScanner({ onCapture, onClose }) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [verified, setVerified] = useState(false);
 
-  // Initialize random challenges
+  // Initialize challenge
   useEffect(() => {
-    const shuffled = [...LIVENESS_CHALLENGES].sort(() => 0.5 - Math.random());
-    setChallenges(shuffled.slice(0, 2)); // Pick 2 random challenges
+    setChallenges([...LIVENESS_CHALLENGES]); 
   }, []);
 
   useEffect(() => {
     if (challenges.length === 0) return;
 
     let stream = null;
-    let animationFrameId = null;
+    let scanTimeoutId = null;
 
     const startCamera = async () => {
       try {
-        await loadModels();
-        setStatus('Starting camera...');
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        setStatus('Starting camera and loading models...');
+        
+        // Parallelize camera and models
+        const streamPromise = navigator.mediaDevices.getUserMedia({ video: true }).then(s => {
+          stream = s;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        });
+
+        await Promise.all([loadModels(), streamPromise]);
+        setStatus('Ready for scanning...');
       } catch (err) {
-        setStatus('Error accessing camera.');
+        setStatus('Error accessing camera or loading models.');
         console.error(err);
       }
     };
@@ -70,7 +73,7 @@ export default function FaceScanner({ onCapture, onClose }) {
           const isSpoofing = await detectSpoofingPhone(video);
           if (isSpoofing) {
             setStatus('🚨 SECURITY ALERT: Cell phone detected! Spoofing attempt blocked.');
-            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (scanTimeoutId) clearTimeout(scanTimeoutId);
             setTimeout(onClose, 3000); // Auto-close after 3s
             return;
           }
@@ -98,10 +101,8 @@ export default function FaceScanner({ onCapture, onClose }) {
               setCurrentIdx(0);
               challengeStartTime = Date.now();
               lastActionCompleteTime = Date.now();
-              // Shuffle challenges again
-              const newShuffled = [...LIVENESS_CHALLENGES].sort(() => 0.5 - Math.random());
-              setChallenges(newShuffled.slice(0, 2));
-              setTimeout(() => { requestAnimationFrame(scanLoop); }, 1500);
+              setChallenges([...LIVENESS_CHALLENGES]);
+              scanTimeoutId = setTimeout(scanLoop, 1500);
               return;
             }
 
@@ -109,7 +110,7 @@ export default function FaceScanner({ onCapture, onClose }) {
             
             // Give a small cooldown between challenges (e.g., 1.5 seconds) to ensure they return to neutral
             if (now - lastActionCompleteTime > 1500) {
-              setStatus(`Step ${localIdx + 1}/2: ${currentChallenge.text} (${timeLeft}s)`);
+              setStatus(`Action required: ${currentChallenge.text} (${timeLeft}s)`);
 
               if (actions[currentChallenge.id]) {
                 localIdx++;
@@ -154,7 +155,7 @@ export default function FaceScanner({ onCapture, onClose }) {
           challengeStartTime = Date.now(); // Reset timer while face is not detected
         }
 
-        animationFrameId = requestAnimationFrame(scanLoop);
+        scanTimeoutId = setTimeout(scanLoop, 150); // ~6 FPS to save CPU
       };
 
       scanLoop();
@@ -168,10 +169,11 @@ export default function FaceScanner({ onCapture, onClose }) {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
+      if (scanTimeoutId) {
+        clearTimeout(scanTimeoutId);
       }
       if (videoRef.current) {
+        videoRef.current.srcObject = null;
         videoRef.current.removeEventListener('play', handleVideoPlay);
       }
     };
